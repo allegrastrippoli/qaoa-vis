@@ -1,4 +1,3 @@
-from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
 from pennylane import numpy as np
 import pennylane as qml
@@ -12,10 +11,10 @@ np.random.seed(42)
 output_dir = "./charts" 
 plot_subdirs = [f"{output_dir}/state_probability", 
                 f"{output_dir}/state_phase", 
-                f"{output_dir}/state_probability_fixed_params", 
-                f"{output_dir}/state_phase_fixed_params",
+                f"{output_dir}/state_probability_aggregate", 
+                f"{output_dir}/state_phase_aggregate",
                 f"{output_dir}/probability_phase",
-                f"{output_dir}/probability_phase_fixed_params",
+                f"{output_dir}/probability_phase_aggregate",
                 f"{output_dir}/heatmap"]
 os.makedirs(output_dir, exist_ok=True) 
 for path in plot_subdirs:
@@ -105,9 +104,8 @@ def prepare_fig(metric_dict, num_plots,  y_label, y_range_bool, sharey=True):
 
     return fig, axes
 
-def state_metric_fixed_params(file_path, states, metric_dict, n_snapshots,
-                                            fixed_params, y_label,
-                                            line_color="#5891F3", y_range_bool=True):
+def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
+                                            fixed_params, y_label, y_range_bool=True):
     fig, axes = prepare_fig(
         metric_dict=metric_dict,
         num_plots=n_snapshots,
@@ -121,7 +119,7 @@ def state_metric_fixed_params(file_path, states, metric_dict, n_snapshots,
         series_num = 0
         while j in metric_dict:
             y = metric_dict[j]
-            ax.plot(states, y, label=fixed_params[series_num], color=line_color)
+            ax.plot(states, y, label=fixed_params[series_num])
             j += n_snapshots
             series_num += 1
 
@@ -184,25 +182,6 @@ def from_snapshot_to_values(snaps, save_json=False):
     return probs, phases
 
 
-def collect_snapshots(edges, num_layers, fixed_params=None):
-    all_probs, all_phases = {}, {}
-    key_offset, n_snapshots = 0, 0
-    for param in fixed_params:
-        circuit, params, snaps = run_qaoa_for_graph(
-            edges, num_layers=num_layers,
-            params=[[param] * num_layers, [param] * num_layers]
-        )
-        probs_dict, phases_dict = from_snapshot_to_values(snaps)
-        n_snapshots = len(probs_dict)
-        for k, v in probs_dict.items():
-            all_probs[key_offset + k] = v
-        for k, v in phases_dict.items():
-            all_phases[key_offset + k] = v
-        key_offset += n_snapshots
-
-    return all_probs, all_phases, n_snapshots
-
-
 def prepare_prob_phase_fig(states, probs_list, phases_list):
     cols = math.ceil(math.sqrt(len(states)))
     rows = math.ceil(len(states) / cols)
@@ -262,7 +241,7 @@ def probability_phase(file_path, states, probs_list, phases_list):
     plt.savefig(file_path, dpi=300, format=file_path.split('.')[-1])
     plt.close(fig)
     
-def probability_phase_fixed_params(file_path, states, probs_list, phases_list, fixed_params):
+def probability_phase_aggregate(file_path, states, probs_list, phases_list, fixed_params):
     n_snapshots = len(fixed_params)
     fig, axes, x_range, y_range = prepare_prob_phase_fig(states, probs_list, phases_list)
     
@@ -340,6 +319,24 @@ def collect_states(edges, num_layers, num_wires, states, fixed_params=None):
         all_probs.extend(probs_list)
         all_phases.extend(phases_list)
     return all_probs, all_phases
+
+def collect_snapshots(edges, num_layers, fixed_params=None):
+    all_probs, all_phases = {}, {}
+    key_offset, n_snapshots = 0, 0
+    for param in fixed_params:
+        circuit, params, snaps = run_qaoa_for_graph(
+            edges, num_layers=num_layers,
+            params=[[param] * num_layers, [param] * num_layers]
+        )
+        probs_dict, phases_dict = from_snapshot_to_values(snaps)
+        n_snapshots = len(probs_dict)
+        for k, v in probs_dict.items():
+            all_probs[key_offset + k] = v
+        for k, v in phases_dict.items():
+            all_phases[key_offset + k] = v
+        key_offset += n_snapshots
+
+    return all_probs, all_phases, n_snapshots
     
 def run_plot_engine(
     filename, num_layers, num_wires, edges, states,
@@ -350,14 +347,14 @@ def run_plot_engine(
     if from_snapshot_to_values_bool:
         if aggregate and fixed_params is not None:
             all_probs, all_phases, n_snapshots = collect_snapshots(edges, num_layers, fixed_params)
-            state_metric_fixed_params(
+            state_metric_aggregate(
                 f"{plot_subdirs[2]}/{filename}", states, all_probs, n_snapshots, fixed_params, plot_subdirs[2].split('_')[1]
             )
-            state_metric_fixed_params(
+            state_metric_aggregate(
                 f"{plot_subdirs[3]}/{filename}", states, all_phases, n_snapshots, fixed_params, plot_subdirs[3].split('_')[1]
             )
         else:
-            circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=[[0.5]*num_layers, [0.5]*num_layers])
+            circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=fixed_params)
             probs, phases = from_snapshot_to_values(snaps)
             state_metric(f"{plot_subdirs[0]}/{filename}", states, probs, plot_subdirs[0].split('_')[1], line_color="orange")
             state_metric(f"{plot_subdirs[1]}/{filename}", states, phases, plot_subdirs[1].split('_')[1])
@@ -365,9 +362,9 @@ def run_plot_engine(
     elif from_state_to_values_bool:
         if aggregate and fixed_params is not None:
             all_probs, all_phases = collect_states(edges, num_layers, num_wires, states, fixed_params)
-            probability_phase_fixed_params(f"{plot_subdirs[5]}/{filename}", states, all_probs, all_phases, fixed_params)
+            probability_phase_aggregate(f"{plot_subdirs[5]}/{filename}", states, all_probs, all_phases, fixed_params)
         else:
-            circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=[[0.5]*num_layers, [0.5]*num_layers])
+            circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=fixed_params)
             probs, phases = from_state_to_values(states, snaps, num_wires)
             probability_phase(f"{plot_subdirs[4]}/{filename}", states, probs, phases)
             
@@ -376,9 +373,10 @@ if __name__ == "__main__":
     num_wires = 4
     edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
     states = [format(i, f'0{num_wires}b') for i in range(2 ** num_wires) ]   
-    fixed_params = [round(x * 0.01, 2) for x in range(1, 10)]
+    fixed_params_aggregate = [round(x * 0.01, 2) for x in range(1, 10)]
+    fixed_parms = [[0.5]*num_layers, [0.5]*num_layers]
     
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, from_snapshot_to_values_bool=True)
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_params, aggregate=True, from_snapshot_to_values_bool=True)    
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, from_state_to_values_bool=True)
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, from_state_to_values_bool=True, aggregate=True, fixed_params=fixed_params)
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_parms, from_snapshot_to_values_bool=True)
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_params_aggregate, aggregate=True, from_snapshot_to_values_bool=True)    
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_parms, from_state_to_values_bool=True)
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_params_aggregate, from_state_to_values_bool=True, aggregate=True)
