@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from pennylane import numpy as np
 import pennylane as qml
+import numpy as np
 import cmath
 import math
 import json
@@ -119,7 +120,7 @@ def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
         series_num = 0
         while j in metric_dict:
             y = metric_dict[j]
-            ax.plot(states, y, label=fixed_params[series_num])
+            ax.plot(states, y, label=round(fixed_params[series_num], 3))
             j += n_snapshots
             series_num += 1
 
@@ -251,7 +252,7 @@ def probability_phase_aggregate(file_path, states, probs_list, phases_list, fixe
             idx = i + len(states) * j
             x = probs_list[idx]
             y = phases_list[idx]
-            ax.plot(x, y, '<-', label=fixed_params[j])
+            ax.plot(x, y, '<-', label=round(fixed_params[j], 3))
 
             ax.plot(x[0], y[0], 'o', color='yellow', markersize=8, markeredgecolor='black', label='Start' if j == 0 else "")
             ax.plot(x[-1], y[-1], 'o', color='orange', markersize=8, markeredgecolor='black', label='End' if j == 0 else "")
@@ -367,16 +368,35 @@ def run_plot_engine(
             circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=fixed_params)
             probs, phases = from_state_to_values(states, snaps, num_wires)
             probability_phase(f"{plot_subdirs[4]}/{filename}", states, probs, phases)
-            
+
+
+def test_gamma_beta_incremental(num_layers, num_wires, edges, states):
+    params_range = np.arange(0.1, 1, 0.1)
+    for i in range(len(params_range)):
+        params = [[params_range[i]]*num_layers, [0.5]*num_layers]
+        # run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params,  from_snapshot_to_values_bool=True)
+        run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params, from_state_to_values_bool=True)
+        
+        
+def test_gamma_beta_aggregate_incremental(num_layers, num_wires, edges, states):
+    params_range =  np.arange(0.01, 0.1, 0.01)  
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, params_range, aggregate=True, from_snapshot_to_values_bool=True)    
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, params_range, aggregate=True, from_state_to_values_bool=True)
+
+    
 if __name__ == "__main__":
     num_layers = 2
-    num_wires = 4
-    edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
-    states = [format(i, f'0{num_wires}b') for i in range(2 ** num_wires) ]   
-    fixed_params_aggregate = [round(x * 0.01, 2) for x in range(1, 10)]
-    fixed_parms = [[0.5]*num_layers, [0.5]*num_layers]
-    
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_parms, from_snapshot_to_values_bool=True)
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_params_aggregate, aggregate=True, from_snapshot_to_values_bool=True)    
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_parms, from_state_to_values_bool=True)
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, fixed_params_aggregate, from_state_to_values_bool=True, aggregate=True)
+    edges = []
+    nodes = set()
+    with open("graph.txt") as f:
+        for line in f:
+            node1 = int(line.split(',')[0])
+            node2 = int(line.split(',')[1])
+            edges.append((node1,node2))
+            nodes.add(node1)
+            nodes.add(node2)
+    num_wires = len(nodes)
+    states = [format(i, f'0{num_wires}b') for i in range(2 ** num_wires)]   
+    # test_gamma_beta_incremental(num_layers, num_wires, edges, states)
+    test_gamma_beta_aggregate_incremental(num_layers, num_wires, edges, states)
+
