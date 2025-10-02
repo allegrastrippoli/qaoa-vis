@@ -52,16 +52,43 @@ class MainWindow(QMainWindow):
         self.view.setRenderHints(self.view.renderHints())
 
         # Draw some simple shapes
-        pen = QPen(Qt.black, 2)
-
-        self.scene.addLine(0, 0, 100, 100, pen)
-        self.scene.addEllipse(120, 50, 80, 80, pen, QBrush(QColor("lightblue")))
-        self.scene.addRect(250, 50, 100, 50, pen, QBrush(QColor("lightblue")))
-        self.scene.addText("Hello World!")
+        # pen = QPen(Qt.black, 2)
         
-        for item in self.scene.items():
-            item.setFlag(item.ItemIsMovable, True)
-            item.setFlag(item.ItemIsSelectable, True)
+        def add_node(scene, x, y, radius=10, color="black"):
+            ellipse = scene.addEllipse(x-radius, y-radius, 2*radius, 2*radius)
+            ellipse.setBrush(QBrush(QColor(color)))
+            ellipse.setPen(QPen(Qt.black, 2))
+            # ellipse.setFlag(ellipse.ItemIsMovable, True)
+            # ellipse.setFlag(ellipse.ItemIsSelectable, True)
+            scene.addItem(ellipse)
+            return ellipse
+        
+        def add_edge(scene, node1, node2):
+            x1 = node1.rect().x() + node1.rect().width()/2 + node1.pos().x()
+            y1 = node1.rect().y() + node1.rect().height()/2 + node1.pos().y()
+            x2 = node2.rect().x() + node2.rect().width()/2 + node2.pos().x()
+            y2 = node2.rect().y() + node2.rect().height()/2 + node2.pos().y()
+
+            line = scene.addLine(x1, y1, x2, y2)
+            line.setPen(QPen(Qt.black, 2))
+            scene.addItem(line)
+            return line
+        
+        node1 = add_node(self.scene, 100, 100)
+        node2 = add_node(self.scene, 300, 200)
+        node3 = add_node(self.scene, 200, 300)
+
+        edge1 = add_edge(self.scene, node1, node2)
+        edge2 = add_edge(self.scene, node2, node3)
+        edge3 = add_edge(self.scene, node3, node1)
+        
+        group = self.scene.createItemGroup([node1, node2, node3, edge1, edge2, edge3])
+        group.setFlag(group.ItemIsMovable, True)
+
+        
+        # for item in self.scene.items():
+        #     item.setFlag(item.ItemIsMovable, True)
+        #     item.setFlag(item.ItemIsSelectable, True)
     
         # Mouse event tracking
         # self.view.setMouseTracking(True)
