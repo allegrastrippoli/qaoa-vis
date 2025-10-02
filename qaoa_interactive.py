@@ -23,7 +23,7 @@ html = fig.to_html(include_plotlyjs='cdn')
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Interactive Charts and Canvas")
+        self.setWindowTitle("Interactive QAOA")
         self.setGeometry(100, 100, 1200, 600)
 
         main_widget = QWidget()
@@ -35,13 +35,13 @@ class MainWindow(QMainWindow):
         self.web_view.setHtml(html)
 
         # Checkboxes for filtering traces
-        self.checkboxes = []
-        for i, freq in enumerate(frequencies):
-            cb = QCheckBox(f"Show freq={freq}")
-            cb.setChecked(True)
-            cb.stateChanged.connect(self.update_chart)
-            self.checkboxes.append(cb)
-            chart_layout.addWidget(cb)
+        # self.checkboxes = []
+        # for i, freq in enumerate(frequencies):
+        #     cb = QCheckBox(f"freq={freq}")
+        #     cb.setChecked(True)
+        #     cb.stateChanged.connect(self.update_chart)
+        #     self.checkboxes.append(cb)
+        #     chart_layout.addWidget(cb)
 
         chart_layout.addWidget(self.web_view)
         layout.addLayout(chart_layout)
@@ -53,27 +53,33 @@ class MainWindow(QMainWindow):
 
         # Draw some simple shapes
         pen = QPen(Qt.black, 2)
+
         self.scene.addLine(0, 0, 100, 100, pen)
         self.scene.addEllipse(120, 50, 80, 80, pen, QBrush(QColor("lightblue")))
-        self.scene.addText("Hello Canvas!")
-
+        self.scene.addRect(250, 50, 100, 50, pen, QBrush(QColor("lightblue")))
+        self.scene.addText("Hello World!")
+        
+        for item in self.scene.items():
+            item.setFlag(item.ItemIsMovable, True)
+            item.setFlag(item.ItemIsSelectable, True)
+    
         # Mouse event tracking
-        self.view.setMouseTracking(True)
-        self.view.viewport().installEventFilter(self)
+        # self.view.setMouseTracking(True)
+        # self.view.viewport().installEventFilter(self)
 
         layout.addWidget(self.view)
 
         self.setCentralWidget(main_widget)
 
-    def update_chart(self):
-        """Update Plotly chart visibility based on checkboxes."""
-        visibility = [cb.isChecked() for cb in self.checkboxes]
-        new_fig = go.Figure()
-        for i, freq in enumerate(frequencies):
-            if visibility[i]:
-                new_fig.add_trace(go.Scatter(x=x, y=np.sin(freq * x), name=f'freq={freq}'))
-        new_fig.update_layout(title="Filtered Sine Waves")
-        self.web_view.setHtml(new_fig.to_html(include_plotlyjs='cdn'))
+    # def update_chart(self):
+    #     """Update Plotly chart visibility based on checkboxes."""
+    #     visibility = [cb.isChecked() for cb in self.checkboxes]
+    #     new_fig = go.Figure()
+    #     for i, freq in enumerate(frequencies):
+    #         if visibility[i]:
+    #             new_fig.add_trace(go.Scatter(x=x, y=np.sin(freq * x), name=f'freq={freq}'))
+    #     new_fig.update_layout(title="Filtered Sine Waves")
+    #     self.web_view.setHtml(new_fig.to_html(include_plotlyjs='cdn'))
 
     def eventFilter(self, source, event):
         if source is self.view.viewport() and event.type() == event.MouseButtonPress:
