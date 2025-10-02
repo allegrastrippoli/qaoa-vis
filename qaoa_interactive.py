@@ -1,7 +1,8 @@
 import sys
 import numpy as np
+import networkx as nx
 import plotly.graph_objects as go
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QCheckBox, QHBoxLayout, QGraphicsView, QGraphicsScene
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout , QHBoxLayout, QGraphicsView, QGraphicsScene
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import QGraphicsEllipseItem, QGraphicsTextItem
 from PyQt5.QtGui import QPen, QBrush, QColor
@@ -19,7 +20,7 @@ fig.update_layout(title="Sine Waves with Different Frequencies")
 html = fig.to_html(include_plotlyjs='cdn')
 
 class GraphNode(QGraphicsEllipseItem):
-    def __init__(self, node_id, x, y, r=20, color="lightblue"):
+    def __init__(self, node_id, x, y, r=20, color="white"):
         super().__init__(-r, -r, 2*r, 2*r)
         self.setPos(x, y)
         self.setBrush(QBrush(QColor(color)))
@@ -32,6 +33,7 @@ class GraphNode(QGraphicsEllipseItem):
         self.label = QGraphicsTextItem(str(node_id), self)  # attach text to node
         self.label.setDefaultTextColor(Qt.black)
         self.label.setPos(-r/2, -r/2)  # center the text roughly
+        self.label.setZValue(300)
 
         self.neighbors = set()
 
@@ -60,10 +62,6 @@ class MainWindow(QMainWindow):
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHints(self.view.renderHints())
         
-        node1 = GraphNode(1, 100, 100)
-        node2 = GraphNode(2, 200, 200)
-        node3 = GraphNode(3, 300, 150)
-        
         def add_edge(scene, node1, node2):
             x1 = node1.rect().x() + node1.rect().width()/2 + node1.pos().x()
             y1 = node1.rect().y() + node1.rect().height()/2 + node1.pos().y()
@@ -76,11 +74,19 @@ class MainWindow(QMainWindow):
             # scene.addItem(line)
             return line
         
-        edge1 = add_edge(self.scene, node1, node2)
-        edge2 = add_edge(self.scene, node2, node3)
-        edge3 = add_edge(self.scene, node3, node1)
+        G = nx.Graph()
+        G.add_nodes_from([1,2,3,4,5])
+        G.add_edges_from([(1,2),(1,3),(1,4),(1,5)])
+        pos = nx.spring_layout(G, k=50, scale=100) 
+        nodes = {}
+        for node_id, (x, y) in pos.items():
+            node = GraphNode(node_id, x, y)
+            self.scene.addItem(node)
+            nodes[node_id] = node
+        for u, v in G.edges():
+            add_edge(self.scene, nodes[u], nodes[v])
         
-        group = self.scene.createItemGroup([node1, node2, node3, edge1, edge2, edge3])
+        group = self.scene.createItemGroup(self.scene.items())
         group.setFlag(group.ItemIsMovable, True)
 
         # for item in self.scene.items():
@@ -88,7 +94,6 @@ class MainWindow(QMainWindow):
         #     item.setFlag(item.ItemIsSelectable, True)
 
         layout.addWidget(self.view)
-
         self.setCentralWidget(main_widget)
 
 if __name__ == "__main__":
