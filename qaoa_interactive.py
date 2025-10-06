@@ -90,36 +90,74 @@ class MainWindow(QMainWindow):
         horizontal_layout.addLayout(left_layout)
 
         # === Graph View ===
-        self.scene = QGraphicsScene()          
-        self.view = QGraphicsView(self.scene)  
-        horizontal_layout.addWidget(self.view) 
+        self.graph_view = QWebEngineView()
+        horizontal_layout.addWidget(self.graph_view)
         self.setCentralWidget(main_widget)
-        self.load_graph()
+        self.load_graph_js()
 
 
 
-    def load_graph(self):
-        try:
-            with open("graph.txt") as f:
-                edges = [tuple(map(int, line.strip().split(','))) for line in f]
-        except FileNotFoundError:
-            return 
+    def load_graph_js(self):
+            try:
+                with open("graph.txt") as f:
+                    edges = [tuple(map(int, line.strip().split(','))) for line in f]
+            except FileNotFoundError:
+                return
 
-        G = nx.Graph()
-        G.add_edges_from(edges)
-        pos = nx.spring_layout(G, k=10, scale=100)
-        node_objs = {}
+            # Extract unique nodes
+            nodes = sorted(set([n for e in edges for n in e]))
 
-        for node_id, (x, y) in pos.items():
-            node = GraphNode(node_id, x, y)
-            self.scene.addItem(node)
-            node_objs[node_id] = node
+            # Prepare JSON data for JS
+            js_nodes = json.dumps([{"id": n, "label": str(n)} for n in nodes])
+            js_edges = json.dumps([{"from": u, "to": v} for u, v in edges])
 
-        for u, v in G.edges():
-            self.add_edge(self.scene, node_objs[u], node_objs[v])
+            html = f"""
+            <html>
+            <head>
+                <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+                <style>
+                    #graph {{
+                        width: 100%;
+                        height: 100vh;
+                        border: 1px solid lightgray;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div id="graph"></div>
+                <script>
+                    var nodes = new vis.DataSet({js_nodes});
+                    var edges = new vis.DataSet({js_edges});
+                    var container = document.getElementById('graph');
+                    var data = {{ nodes: nodes, edges: edges }};
+                    var options = {{
+                        physics: true,
+                        interaction: {{ hover: true }},
+                        nodes: {{
+                            shape: 'dot',
+                            size: 10,
+                            color: '#97C2FC',
+                            font: {{ size: 14, color: '#333' }}
+                        }},
+                        edges: {{
+                            color: '#555',
+                            width: 2,
+                            smooth: {{ type: 'continuous' }}
+                        }}
+                    }};
+                    var network = new vis.Network(container, data, options);
 
-        group = self.scene.createItemGroup(self.scene.items())
-        group.setFlag(group.ItemIsMovable, True)
+                    // Example: function callable from Python
+                    function highlightNode(id) {{
+                        nodes.update({{id: id, color: {{background: 'orange'}}}});
+                    }}
+                </script>
+            </body>
+            </html>
+            """
+
+            self.graph_view.setHtml(html)
+
 
     def add_edge(self, scene, node1, node2):
         x1 = node1.rect().x() + node1.rect().width() / 2 + node1.pos().x()
