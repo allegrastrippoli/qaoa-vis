@@ -10,7 +10,6 @@ import networkx as nx
 import json, sys
 
 
-# --- Load JSON data ---
 with open("state_probability_1.json") as f:
     data = json.load(f)
 
@@ -35,15 +34,13 @@ class GraphNode(QGraphicsEllipseItem):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Interactive QAOA (Animated Multi-Line)")
+        self.setWindowTitle("Interactive QAOA")
         self.setGeometry(100, 100, 1200, 600)
 
-        # --- Layouts ---
         main_widget = QWidget()
         layout = QHBoxLayout(main_widget)
         chart_layout = QVBoxLayout()
 
-        # --- QWebEngineView for Plotly chart ---
         self.web_view = QWebEngineView()
         self.current_index = 0
         self.period = data[0]["Period"]
@@ -51,15 +48,13 @@ class MainWindow(QMainWindow):
         self.create_html_plot()
         self.web_view.setHtml(self.html_content)
 
-        # --- Button ---
-        self.update_button = QPushButton("Animate to Next Probabilities")
+        self.update_button = QPushButton("Upate Probability")
         self.update_button.clicked.connect(self.animate_update)
 
         chart_layout.addWidget(self.web_view)
         chart_layout.addWidget(self.update_button)
         layout.addLayout(chart_layout)
 
-        # --- Right: Graph Scene ---
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
         layout.addWidget(self.view)
@@ -72,7 +67,7 @@ class MainWindow(QMainWindow):
             with open("graph.txt") as f:
                 edges = [tuple(map(int, line.strip().split(','))) for line in f]
         except FileNotFoundError:
-            return  # skip if file missing
+            return 
 
         G = nx.Graph()
         G.add_edges_from(edges)
@@ -101,18 +96,19 @@ class MainWindow(QMainWindow):
         return line
 
     def create_html_plot(self):
-        """Create HTML with JS animation for multiple lines"""
         first_group = data[self.current_index:self.current_index + self.period]
-
         traces_js = ""
+
         for i, elem in enumerate(first_group):
+            x_values = json.dumps([str(s) for s in elem["State"]])
+            y_values = json.dumps(elem["Probability"])  # Serialize to JSON array
             traces_js += f"""
-                {{
-                    x: {elem['State']},
-                    y: {elem['Probabilities']},
-                    mode: 'lines+markers',
-                    name: 'Line {i+1}'
-                }},"""
+            {{
+                x: {x_values},
+                y: {y_values},
+                mode: 'lines+markers',
+                name: 'Line {i + 1}'
+            }},"""
 
         self.html_content = f"""
         <html>
@@ -123,22 +119,24 @@ class MainWindow(QMainWindow):
             <div id="plot" style="width:100%;height:100%"></div>
             <script>
                 var traces = [{traces_js}];
+
                 var layout = {{
-                    title: 'State Probabilities (Animated Multi-Line)',
-                    xaxis: {{title: 'State'}},
-                    yaxis: {{title: 'Probability', range: [0, 1]}}
+                    title: 'State Probabilities',
+                    xaxis: {{title: 'State', type: 'category' }},
+                    yaxis: {{title: 'Probability'}}
                 }};
+
                 Plotly.newPlot('plot', traces, layout);
 
                 function updateData(newYs) {{
                     for (var i = 0; i < newYs.length; i++) {{
                         Plotly.animate('plot', {{
-                            data: [{{y: newYs[i]}}],
+                            data: [{{ y: newYs[i] }}],
                             traces: [i],
                             layout: {{}}
                         }}, {{
-                            transition: {{duration: 1000, easing: 'cubic-in-out'}},
-                            frame: {{duration: 1000, redraw: false}}
+                            transition: {{ duration: 1000, easing: 'cubic-in-out' }},
+                            frame: {{ duration: 1000, redraw: false }}
                         }});
                     }}
                 }}
@@ -148,18 +146,16 @@ class MainWindow(QMainWindow):
         """
 
     def animate_update(self):
-        """Smoothly animate each line to its next-period dataset"""
         next_indices = [
             (self.current_index + self.period + i) % len(data)
             for i in range(self.period)
         ]
-        new_y_values = [data[idx]["Probabilities"] for idx in next_indices]
+        new_y_values = [data[idx]["Probability"] for idx in next_indices]
 
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         js_command = f"updateData({js_array});"
         self.web_view.page().runJavaScript(js_command)
 
-        # advance base index
         self.current_index = (self.current_index + self.period) % len(data)
 
 
