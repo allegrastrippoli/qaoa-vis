@@ -9,10 +9,11 @@ from PyQt5.QtCore import Qt
 import networkx as nx
 import json, sys
 
-
-with open("state_probability_1.json") as f:
+with open("state_probability.json") as f:
     data = json.load(f)
-
+    
+params = data[0]
+data = data[1:]
 
 class GraphNode(QGraphicsEllipseItem):
     def __init__(self, node_id, x, y, r=20, color="white"):
@@ -30,44 +31,41 @@ class GraphNode(QGraphicsEllipseItem):
         self.label.setPos(-r / 2, -r / 2)
         self.label.setZValue(300)
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Interactive QAOA")
-        self.setGeometry(100, 100, 1200, 600)
-
         main_widget = QWidget()
-        layout = QHBoxLayout(main_widget)
-        chart_layout = QVBoxLayout()
-
-        self.web_view = QWebEngineView()
+        horizontal_layout  = QHBoxLayout(main_widget) 
+        vertical_layout = QVBoxLayout()     
+        
+        self.web_view = QWebEngineView() 
         self.current_index = 0
-        self.period = data[0]["Period"]
-
+        self.period = params["Period"]
+        self.labels = params["Fixed parameters"]
+        self.y_range = params["Y range"]
+        
         self.create_html_plot()
         self.web_view.setHtml(self.html_content)
-
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setMinimum(0)
         self.slider.setMaximum(len(data) // self.period - 1)
         self.slider.setTickPosition(QSlider.TicksBelow)
         self.slider.setTickInterval(1)
         self.slider.valueChanged.connect(self.slider_update)
-        chart_layout.addWidget(self.web_view)
-
         self.slider_label = QLabel("Layer 0")
 
-        chart_layout.addWidget(self.slider_label)
-        chart_layout.addWidget(self.slider)
+        vertical_layout.addWidget(self.web_view) # add widgets to layout vertically
+        vertical_layout.addWidget(self.slider_label)
+        vertical_layout.addWidget(self.slider)
         
-        layout.addLayout(chart_layout)
+        horizontal_layout.addLayout(vertical_layout) # puts vertical chart layout on the left side of the main horizontal layout
 
-        self.scene = QGraphicsScene()
-        self.view = QGraphicsView(self.scene)
-        layout.addWidget(self.view)
+        self.scene = QGraphicsScene()          # empty canvas
+        self.view = QGraphicsView(self.scene)  # window that displays that scene
+        horizontal_layout.addWidget(self.view) # puts the view on the right side of the main horizontal layout
         self.setCentralWidget(main_widget)
-
+       
         self.load_graph()
 
     def load_graph(self):
@@ -109,13 +107,13 @@ class MainWindow(QMainWindow):
 
         for i, elem in enumerate(first_group):
             x_values = json.dumps([str(s) for s in elem["State"]])
-            y_values = json.dumps(elem["Probability"])  # Serialize to JSON array
+            y_values = json.dumps(elem["Probability"]) 
             traces_js += f"""
             {{
                 x: {x_values},
                 y: {y_values},
                 mode: 'lines+markers',
-                name: 'γ,β=0.0{i + 1}'
+                name: 'γ,β={params["Fixed parameters"][i]}'
             }},"""
 
         self.html_content = f"""
@@ -131,7 +129,7 @@ class MainWindow(QMainWindow):
                 var layout = {{
                     title: 'State Probabilities',
                     xaxis: {{title: 'State', type: 'category' }},
-                    yaxis: {{title: 'Probability'}}
+                    yaxis: {{title: 'Probability', range: [{params["Y range"][0]}, {params["Y range"][1]}] }}
                 }};
 
                 Plotly.newPlot('plot', traces, layout);
@@ -167,7 +165,6 @@ class MainWindow(QMainWindow):
         self.current_index = (self.current_index + self.period) % len(data)
         
     def slider_update(self, value):
-        """Called whenever the slider moves."""
         self.slider_label.setText(f"Layer: {value}")
 
         start_index = value * self.period
