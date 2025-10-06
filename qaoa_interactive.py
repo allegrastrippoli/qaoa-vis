@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QHBoxLayout, QGraphicsView, QGraphicsScene, QPushButton,
+    QHBoxLayout, QGraphicsView, QGraphicsScene,
     QGraphicsEllipseItem, QGraphicsTextItem, QSlider, QLabel
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -36,37 +36,66 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Interactive QAOA")
         main_widget = QWidget()
-        horizontal_layout  = QHBoxLayout(main_widget) 
-        vertical_layout = QVBoxLayout()     
-        
-        self.web_view = QWebEngineView() 
+        horizontal_layout = QHBoxLayout(main_widget) 
+
+        # 🔹 Left side will have two stacked vertical layouts
+        left_layout = QVBoxLayout()
+
+        # === First (Top) View + Slider ===
+        top_layout = QVBoxLayout()
+        self.web_view_top = QWebEngineView() 
         self.current_index = 0
         self.period = params["Period"]
         self.labels = params["Fixed parameters"]
         self.y_range = params["Y range"]
-        
+
         self.create_html_plot()
-        self.web_view.setHtml(self.html_content)
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(len(data) // self.period - 1)
-        self.slider.setTickPosition(QSlider.TicksBelow)
-        self.slider.setTickInterval(1)
-        self.slider.valueChanged.connect(self.slider_update)
-        self.slider_label = QLabel("Layer 0")
+        self.web_view_top.setHtml(self.html_content)
 
-        vertical_layout.addWidget(self.web_view) # add widgets to layout vertically
-        vertical_layout.addWidget(self.slider_label)
-        vertical_layout.addWidget(self.slider)
-        
-        horizontal_layout.addLayout(vertical_layout) # puts vertical chart layout on the left side of the main horizontal layout
+        self.slider_top = QSlider(Qt.Horizontal)
+        self.slider_top.setMinimum(0)
+        self.slider_top.setMaximum(len(data) // self.period - 1)
+        self.slider_top.setTickPosition(QSlider.TicksBelow)
+        self.slider_top.setTickInterval(1)
+        self.slider_top.valueChanged.connect(self.slider_update_top)
+        self.slider_label_top = QLabel("Layer 0")
 
-        self.scene = QGraphicsScene()          # empty canvas
-        self.view = QGraphicsView(self.scene)  # window that displays that scene
-        horizontal_layout.addWidget(self.view) # puts the view on the right side of the main horizontal layout
+        top_layout.addWidget(self.web_view_top)
+        top_layout.addWidget(self.slider_label_top)
+        top_layout.addWidget(self.slider_top)
+
+        # === Second (Bottom) View + Slider ===
+        bottom_layout = QVBoxLayout()
+        self.web_view_bottom = QWebEngineView()
+        self.web_view_bottom.setHtml(self.html_content)  # duplicate initial plot
+
+        self.slider_bottom = QSlider(Qt.Horizontal)
+        self.slider_bottom.setMinimum(0)
+        self.slider_bottom.setMaximum(len(data) // self.period - 1)
+        self.slider_bottom.setTickPosition(QSlider.TicksBelow)
+        self.slider_bottom.setTickInterval(1)
+        self.slider_bottom.valueChanged.connect(self.slider_update_bottom)
+        self.slider_label_bottom = QLabel("Layer 0 (Bottom)")
+
+        bottom_layout.addWidget(self.web_view_bottom)
+        bottom_layout.addWidget(self.slider_label_bottom)
+        bottom_layout.addWidget(self.slider_bottom)
+
+        # Add both to left layout
+        left_layout.addLayout(top_layout)
+        left_layout.addLayout(bottom_layout)
+
+        # Add left layout to main horizontal layout
+        horizontal_layout.addLayout(left_layout)
+
+        # === Graph View on the Right ===
+        self.scene = QGraphicsScene()          
+        self.view = QGraphicsView(self.scene)  
+        horizontal_layout.addWidget(self.view) 
+
         self.setCentralWidget(main_widget)
-       
         self.load_graph()
+
 
     def load_graph(self):
         try:
@@ -163,9 +192,24 @@ class MainWindow(QMainWindow):
 
         self.current_index = (self.current_index + self.period) % len(data)
         
-    def slider_update(self, value):
-        self.slider_label.setText(f"Layer: {value}")
+    # def slider_update(self, value):
+    #     self.slider_label.setText(f"Layer: {value}")
 
+    #     start_index = value * self.period
+    #     next_indices = [
+    #         (start_index + i) % len(data)
+    #         for i in range(self.period)
+    #     ]
+    #     new_y_values = [data[idx]["Probability"] for idx in next_indices]
+
+    #     js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
+    #     js_command = f"updateData({js_array});"
+    #     self.web_view.page().runJavaScript(js_command)
+
+    #     self.current_index = start_index
+  
+    def slider_update_top(self, value):
+        self.slider_label_top.setText(f"Layer: {value}")
         start_index = value * self.period
         next_indices = [
             (start_index + i) % len(data)
@@ -175,9 +219,21 @@ class MainWindow(QMainWindow):
 
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         js_command = f"updateData({js_array});"
-        self.web_view.page().runJavaScript(js_command)
+        self.web_view_top.page().runJavaScript(js_command)  
+      
+    def slider_update_bottom(self, value):
+        self.slider_label_bottom.setText(f"Layer: {value}")
+        start_index = value * self.period
+        next_indices = [
+            (start_index + i) % len(data)
+            for i in range(self.period)
+        ]
+        new_y_values = [data[idx]["Probability"] for idx in next_indices]
 
-        self.current_index = start_index
+        js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
+        js_command = f"updateData({js_array});"
+        self.web_view_bottom.page().runJavaScript(js_command)
+
 
 
 
