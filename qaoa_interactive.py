@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
                 var traces = [{traces_js}];
 
                 var layout = {{
-                    title: 'State Probabilities',
+                    title: 'QAOA Viz',
                     xaxis: {{title: 'State', type: 'category' }},
                     yaxis: {{title: 'Probability', range: [{params["Y range"][0]}, {params["Y range"][1]}] }}
                 }};
@@ -139,10 +139,9 @@ class MainWindow(QMainWindow):
                         Plotly.animate('plot', {{
                             data: [{{ y: newYs[i] }}],
                             traces: [i],
-                            layout: {{}}
                         }}, {{
-                            transition: {{ duration: 1000, easing: 'cubic-in-out' }},
-                            frame: {{ duration: 1000, redraw: false }}
+                             transition: {{ duration: 0 }},
+                            frame: {{ duration: 100, redraw: false }}
                         }});
                     }}
                 }}
