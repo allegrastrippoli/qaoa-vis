@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QGraphicsView, QGraphicsScene, QPushButton,
-    QGraphicsEllipseItem, QGraphicsTextItem
+    QGraphicsEllipseItem, QGraphicsTextItem, QSlider, QLabel
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtGui import QPen, QBrush, QColor
@@ -48,11 +48,19 @@ class MainWindow(QMainWindow):
         self.create_html_plot()
         self.web_view.setHtml(self.html_content)
 
-        self.update_button = QPushButton("Upate Probability")
-        self.update_button.clicked.connect(self.animate_update)
-
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(len(data) // self.period - 1)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(1)
+        self.slider.valueChanged.connect(self.slider_update)
         chart_layout.addWidget(self.web_view)
-        chart_layout.addWidget(self.update_button)
+
+        self.slider_label = QLabel("Layer 0")
+
+        chart_layout.addWidget(self.slider_label)
+        chart_layout.addWidget(self.slider)
+        
         layout.addLayout(chart_layout)
 
         self.scene = QGraphicsScene()
@@ -107,7 +115,7 @@ class MainWindow(QMainWindow):
                 x: {x_values},
                 y: {y_values},
                 mode: 'lines+markers',
-                name: 'Line {i + 1}'
+                name: 'γ,β=0.0{i + 1}'
             }},"""
 
         self.html_content = f"""
@@ -157,6 +165,24 @@ class MainWindow(QMainWindow):
         self.web_view.page().runJavaScript(js_command)
 
         self.current_index = (self.current_index + self.period) % len(data)
+        
+    def slider_update(self, value):
+        """Called whenever the slider moves."""
+        self.slider_label.setText(f"Layer: {value}")
+
+        start_index = value * self.period
+        next_indices = [
+            (start_index + i) % len(data)
+            for i in range(self.period)
+        ]
+        new_y_values = [data[idx]["Probability"] for idx in next_indices]
+
+        js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
+        js_command = f"updateData({js_array});"
+        self.web_view.page().runJavaScript(js_command)
+
+        self.current_index = start_index
+
 
 
 if __name__ == "__main__":
