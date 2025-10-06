@@ -10,10 +10,16 @@ import networkx as nx
 import json, sys
 
 with open("state_probability.json") as f:
-    data = json.load(f)
-    
-params = data[0]
-data = data[1:]
+    data_prob = json.load(f)
+
+params_prob = data_prob[0]
+data_prob = data_prob[1:]
+
+with open("state_phase.json") as f:
+    data_phase = json.load(f)
+
+params_phase = data_phase[0]
+data_phase = data_phase[1:]
 
 class GraphNode(QGraphicsEllipseItem):
     def __init__(self, node_id, x, y, r=20, color="white"):
@@ -38,63 +44,58 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         horizontal_layout = QHBoxLayout(main_widget) 
 
-        # 🔹 Left side will have two stacked vertical layouts
+        # === Left layouts ===
         left_layout = QVBoxLayout()
 
-        # === First (Top) View + Slider ===
+        # === TOP (Probability) ===
         top_layout = QVBoxLayout()
-        self.web_view_top = QWebEngineView() 
-        self.current_index = 0
-        self.period = params["Period"]
-        self.labels = params["Fixed parameters"]
-        self.y_range = params["Y range"]
+        self.web_view_top = QWebEngineView()
+        self.current_index_top = 0
+        self.period = params_prob["Period"]
 
-        self.create_html_plot()
+        self.create_html_plot(data_prob, params_prob, "Probability")
         self.web_view_top.setHtml(self.html_content)
 
         self.slider_top = QSlider(Qt.Horizontal)
         self.slider_top.setMinimum(0)
-        self.slider_top.setMaximum(len(data) // self.period - 1)
-        self.slider_top.setTickPosition(QSlider.TicksBelow)
-        self.slider_top.setTickInterval(1)
+        self.slider_top.setMaximum(len(data_prob) // self.period - 1)
         self.slider_top.valueChanged.connect(self.slider_update_top)
-        self.slider_label_top = QLabel("Layer 0")
+        self.slider_label_top = QLabel("Layer 0 (Probability)")
 
         top_layout.addWidget(self.web_view_top)
         top_layout.addWidget(self.slider_label_top)
         top_layout.addWidget(self.slider_top)
 
-        # === Second (Bottom) View + Slider ===
+        # === BOTTOM (Phase) ===
         bottom_layout = QVBoxLayout()
         self.web_view_bottom = QWebEngineView()
-        self.web_view_bottom.setHtml(self.html_content)  # duplicate initial plot
+        self.current_index_bottom = 0
+
+        self.create_html_plot(data_phase, params_phase, "Phase")
+        self.web_view_bottom.setHtml(self.html_content)
 
         self.slider_bottom = QSlider(Qt.Horizontal)
         self.slider_bottom.setMinimum(0)
-        self.slider_bottom.setMaximum(len(data) // self.period - 1)
-        self.slider_bottom.setTickPosition(QSlider.TicksBelow)
-        self.slider_bottom.setTickInterval(1)
+        self.slider_bottom.setMaximum(len(data_phase) // self.period - 1)
         self.slider_bottom.valueChanged.connect(self.slider_update_bottom)
-        self.slider_label_bottom = QLabel("Layer 0 (Bottom)")
+        self.slider_label_bottom = QLabel("Layer 0 (Phase)")
 
         bottom_layout.addWidget(self.web_view_bottom)
         bottom_layout.addWidget(self.slider_label_bottom)
         bottom_layout.addWidget(self.slider_bottom)
 
-        # Add both to left layout
+        # Add to main layout
         left_layout.addLayout(top_layout)
         left_layout.addLayout(bottom_layout)
-
-        # Add left layout to main horizontal layout
         horizontal_layout.addLayout(left_layout)
 
-        # === Graph View on the Right ===
+        # === Graph View ===
         self.scene = QGraphicsScene()          
         self.view = QGraphicsView(self.scene)  
         horizontal_layout.addWidget(self.view) 
-
         self.setCentralWidget(main_widget)
         self.load_graph()
+
 
 
     def load_graph(self):
@@ -130,13 +131,13 @@ class MainWindow(QMainWindow):
         line.setZValue(100)
         return line
 
-    def create_html_plot(self):
-        first_group = data[self.current_index:self.current_index + self.period]
+    def create_html_plot(self, dataset, params, y_key):
+        first_group = dataset[self.current_index_top:self.current_index_top + params["Period"]]
         traces_js = ""
 
         for i, elem in enumerate(first_group):
             x_values = json.dumps([str(s) for s in elem["State"]])
-            y_values = json.dumps(elem["Probability"]) 
+            y_values = json.dumps(elem[y_key])
             traces_js += f"""
             {{
                 x: {x_values},
@@ -154,13 +155,11 @@ class MainWindow(QMainWindow):
             <div id="plot" style="width:100%;height:100%"></div>
             <script>
                 var traces = [{traces_js}];
-
                 var layout = {{
-                    title: 'QAOA Viz',
+                    title: 'QAOA Viz ({y_key})',
                     xaxis: {{title: 'State', type: 'category' }},
-                    yaxis: {{title: 'Probability', range: [{params["Y range"][0]}, {params["Y range"][1]}] }}
+                    yaxis: {{title: '{y_key}', range: [{params["Y range"][0]}, {params["Y range"][1]}] }}
                 }};
-
                 Plotly.newPlot('plot', traces, layout);
 
                 function updateData(newYs) {{
@@ -169,7 +168,7 @@ class MainWindow(QMainWindow):
                             data: [{{ y: newYs[i] }}],
                             traces: [i],
                         }}, {{
-                             transition: {{ duration: 0 }},
+                            transition: {{ duration: 0 }},
                             frame: {{ duration: 100, redraw: false }}
                         }});
                     }}
@@ -178,6 +177,7 @@ class MainWindow(QMainWindow):
         </body>
         </html>
         """
+
 
     def animate_update(self):
         next_indices = [
@@ -211,30 +211,18 @@ class MainWindow(QMainWindow):
     def slider_update_top(self, value):
         self.slider_label_top.setText(f"Layer: {value}")
         start_index = value * self.period
-        next_indices = [
-            (start_index + i) % len(data)
-            for i in range(self.period)
-        ]
-        new_y_values = [data[idx]["Probability"] for idx in next_indices]
-
+        next_indices = [(start_index + i) % len(data_prob) for i in range(self.period)]
+        new_y_values = [data_prob[idx]["Probability"] for idx in next_indices]
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
-        js_command = f"updateData({js_array});"
-        self.web_view_top.page().runJavaScript(js_command)  
-      
+        self.web_view_top.page().runJavaScript(f"updateData({js_array});")
+
     def slider_update_bottom(self, value):
         self.slider_label_bottom.setText(f"Layer: {value}")
         start_index = value * self.period
-        next_indices = [
-            (start_index + i) % len(data)
-            for i in range(self.period)
-        ]
-        new_y_values = [data[idx]["Probability"] for idx in next_indices]
-
+        next_indices = [(start_index + i) % len(data_phase) for i in range(self.period)]
+        new_y_values = [data_phase[idx]["Phase"] for idx in next_indices]
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
-        js_command = f"updateData({js_array});"
-        self.web_view_bottom.page().runJavaScript(js_command)
-
-
+        self.web_view_bottom.page().runJavaScript(f"updateData({js_array});")
 
 
 if __name__ == "__main__":
