@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtGui import QPen, QBrush, QColor
 from PyQt5.QtCore import Qt
-import networkx as nx
+from PyQt5 import QtGui, QtCore
 import json, sys
 
 with open("state_probability.json") as f:
@@ -44,10 +44,8 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         horizontal_layout = QHBoxLayout(main_widget) 
 
-        # === Left layouts ===
         left_layout = QVBoxLayout()
 
-        # === TOP (Probability) ===
         top_layout = QVBoxLayout()
         self.web_view_top = QWebEngineView()
         self.current_index_top = 0
@@ -66,7 +64,6 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.slider_label_top)
         top_layout.addWidget(self.slider_top)
 
-        # === BOTTOM (Phase) ===
         bottom_layout = QVBoxLayout()
         self.web_view_bottom = QWebEngineView()
         self.current_index_bottom = 0
@@ -84,15 +81,24 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.slider_label_bottom)
         bottom_layout.addWidget(self.slider_bottom)
 
-        # Add to main layout
         left_layout.addLayout(top_layout)
         left_layout.addLayout(bottom_layout)
         horizontal_layout.addLayout(left_layout)
 
-        # === Graph View ===
+        right_layout = QVBoxLayout()
+
         self.graph_view = QWebEngineView()
-        horizontal_layout.addWidget(self.graph_view)
+        right_layout.addWidget(self.graph_view, stretch=3)
+
+        self.canvas_view = QGraphicsView()
+        self.canvas_scene = QGraphicsScene()
+        self.canvas_view.setScene(self.canvas_scene)
+        self.draw_arrow_canvas() 
+        right_layout.addWidget(self.canvas_view, stretch=2)
+
+        horizontal_layout.addLayout(right_layout)
         self.setCentralWidget(main_widget)
+
         self.load_graph_js()
 
 
@@ -104,10 +110,8 @@ class MainWindow(QMainWindow):
             except FileNotFoundError:
                 return
 
-            # Extract unique nodes
             nodes = sorted(set([n for e in edges for n in e]))
 
-            # Prepare JSON data for JS
             js_nodes = json.dumps([{"id": n, "label": str(n)} for n in nodes])
             js_edges = json.dumps([{"from": u, "to": v} for u, v in edges])
 
@@ -168,6 +172,80 @@ class MainWindow(QMainWindow):
         line.setPen(QPen(Qt.black, 2))
         line.setZValue(100)
         return line
+    
+    def update_arrow_position(self, layer_index):
+        if not hasattr(self, "squares") or layer_index >= len(self.squares):
+            return
+
+        square = self.squares[layer_index]
+        rect = square.rect()
+        x = square.rect().x() + square.pos().x() + rect.width() / 2
+        y = square.rect().y() + square.pos().y()
+
+        start_x = x 
+        start_y = y - 40
+        end_x = x
+        end_y = y - 20
+        self.arrow_line.setLine(start_x, start_y, end_x, end_y)
+
+        arrow_size = 12
+        points = QtGui.QPolygonF([
+            QtCore.QPointF(end_x,  end_y  + arrow_size),
+            QtCore.QPointF(end_x + arrow_size / 2, end_y),
+            QtCore.QPointF(end_x - arrow_size / 2, end_y),
+        ])
+        self.arrow_head.setPolygon(points)
+
+        self.canvas_scene.update()
+        self.canvas_view.viewport().update()
+
+
+    
+    def draw_arrow_canvas(self):
+        self.canvas_scene.clear()
+
+        num_layers = self.slider_top.maximum() + 1  
+        square_size = 80
+        spacing = 30
+        start_x = 50
+        y = 100
+
+        self.squares = []  
+        
+        cost_mixer_labels = ['C', 'M']
+        idx = -1
+        for i in range(num_layers):
+            x = start_x + i * (square_size + spacing)
+            rect_item = self.canvas_scene.addRect(
+                x, y, square_size, square_size,
+                QPen(Qt.black, 2),
+                QBrush(Qt.lightGray)
+            )              
+            if i % 2 == 0:
+                idx += 1
+            label_html = f"<span style='font-size:16px;'>&#770;U<sub>{cost_mixer_labels[i%2]}</sub>(γ<sub>{idx}</sub>)</span>"
+            label = self.canvas_scene.addText("")
+            label.setHtml(label_html)
+            label.setDefaultTextColor(Qt.black)
+
+            text_rect = label.boundingRect()
+            label.setPos(
+                x + (square_size - text_rect.width()) / 2,
+                y + (square_size - text_rect.height()) / 2
+            )
+
+            self.squares.append(rect_item)
+
+        self.arrow_line = self.canvas_scene.addLine(0, 0, 0, 0, QPen(Qt.red, 3))
+
+        self.arrow_head = self.canvas_scene.addPolygon(
+            QtGui.QPolygonF(),
+            QPen(Qt.red, 3),
+            QBrush(Qt.red)
+        )
+
+        self.update_arrow_position(0)
+
 
     def create_html_plot(self, dataset, params, y_key):
         first_group = dataset[self.current_index_top:self.current_index_top + params["Period"]]
@@ -230,21 +308,6 @@ class MainWindow(QMainWindow):
 
         self.current_index = (self.current_index + self.period) % len(data)
         
-    # def slider_update(self, value):
-    #     self.slider_label.setText(f"Layer: {value}")
-
-    #     start_index = value * self.period
-    #     next_indices = [
-    #         (start_index + i) % len(data)
-    #         for i in range(self.period)
-    #     ]
-    #     new_y_values = [data[idx]["Probability"] for idx in next_indices]
-
-    #     js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
-    #     js_command = f"updateData({js_array});"
-    #     self.web_view.page().runJavaScript(js_command)
-
-    #     self.current_index = start_index
   
     def slider_update_top(self, value):
         self.slider_label_top.setText(f"Layer: {value}")
@@ -253,6 +316,8 @@ class MainWindow(QMainWindow):
         new_y_values = [data_prob[idx]["Probability"] for idx in next_indices]
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         self.web_view_top.page().runJavaScript(f"updateData({js_array});")
+        self.update_arrow_position(value)
+
 
     def slider_update_bottom(self, value):
         self.slider_label_bottom.setText(f"Layer: {value}")
@@ -261,7 +326,8 @@ class MainWindow(QMainWindow):
         new_y_values = [data_phase[idx]["Phase"] for idx in next_indices]
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         self.web_view_bottom.page().runJavaScript(f"updateData({js_array});")
-
+        self.update_arrow_position(value)
+        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
