@@ -5,7 +5,6 @@ import numpy as np
 import cmath
 import math
 import json
-import json
 import os
 
 np.random.seed(42)
@@ -57,7 +56,7 @@ def run_qaoa_for_graph(graph, num_layers=1, steps=20, seed=None, params=None):
     def circuit(gammas, betas, return_samples=False):
         for wire in range(num_wires):
             qml.Hadamard(wires=wire)
-        qml.Snapshot()
+        # qml.Snapshot()
         for gamma, beta in zip(gammas, betas):
             U_C(gamma)
             qml.Snapshot()
@@ -103,23 +102,33 @@ def prepare_fig(metric_dict, num_plots,  y_label, y_range_bool, sharey=True):
         if y_range:
             ax.set_ylim(y_range)
 
-    return fig, axes
+    return fig, axes, y_range
 
 def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
                                             fixed_params, y_label, y_range_bool=True):
-    fig, axes = prepare_fig(
+    fig, axes, y_range = prepare_fig(
         metric_dict=metric_dict,
         num_plots=n_snapshots,
         y_label=y_label,
         y_range_bool=y_range_bool
     )
-    
+
+    results = []    
+    results.append({
+        "Y range": y_range,
+        "Period" : len(fixed_params),
+        "Fixed parameters": list(fixed_params)
+    })
     for i in range(n_snapshots):
         ax = axes[i]
         j = i
         series_num = 0
         while j in metric_dict:
             y = metric_dict[j]
+            results.append({
+            "State": states,
+            "Phase": y
+            })        
             ax.plot(states, y, label=round(fixed_params[series_num], 3))
             j += n_snapshots
             series_num += 1
@@ -127,6 +136,9 @@ def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
         ax.set_xticks(range(len(states)))
         ax.set_xticklabels(states, rotation=90)
         ax.legend()
+    
+    with open(f"{output_dir}/state_phase.json", "w") as f:
+        json.dump(results, f, indent=4)
 
     fig.suptitle(y_label)
     fig.tight_layout()
@@ -136,7 +148,7 @@ def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
 def state_metric(file_path, states, metric_dict, y_label,
                                line_color="#5891F3", y_range_bool=True):
     
-    fig, axes = prepare_fig(
+    fig, axes, y_range = prepare_fig(
         num_plots=len(metric_dict),
         metric_dict=metric_dict,
         y_label=y_label,
@@ -175,7 +187,7 @@ def from_snapshot_to_values(snaps, save_json=False):
         results = []
         results.append({
             "Probabilities": probs,
-            "Phases": phases    
+            "Phases": phases,
         })
         with open(f"{output_dir}/probability_phase.json", "w") as f:
             json.dump(results, f, indent=4)
@@ -285,7 +297,6 @@ def from_state_to_values(states, snaps, num_wires, save_json=False):
     for state in states_list:
         probs = np.zeros(len(snaps) - 1)
         phases = np.zeros(len(snaps) - 1)
-
         for i in range(len(snaps) - 1):
             if len(state) != len(shape):
                 raise ValueError("Wrong shape")
@@ -309,25 +320,25 @@ def from_state_to_values(states, snaps, num_wires, save_json=False):
         
     return probs_list, phases_list
 
-def collect_states(edges, num_layers, num_wires, states, fixed_params=None):
+def collect_states(edges, num_layers, num_wires, states,  gamma_vals = None, beta_vals = None):
     all_probs, all_phases = [], []
-    for param in fixed_params:
+    for gamma, beta in zip(gamma_vals, beta_vals):
         circuit, params, snaps = run_qaoa_for_graph(
             edges, num_layers=num_layers,
-            params=[[param] * num_layers, [param] * num_layers]
+            params=[[gamma] * num_layers, [beta] * num_layers]
         )
         probs_list, phases_list = from_state_to_values(states, snaps, num_wires)
         all_probs.extend(probs_list)
         all_phases.extend(phases_list)
     return all_probs, all_phases
 
-def collect_snapshots(edges, num_layers, fixed_params=None):
+def collect_snapshots(edges, num_layers, gamma_vals=None, beta_vals=None):
     all_probs, all_phases = {}, {}
     key_offset, n_snapshots = 0, 0
-    for param in fixed_params:
+    for gamma, beta in zip(gamma_vals, beta_vals):
         circuit, params, snaps = run_qaoa_for_graph(
             edges, num_layers=num_layers,
-            params=[[param] * num_layers, [param] * num_layers]
+            params=[[gamma] * num_layers, [beta] * num_layers]
         )
         probs_dict, phases_dict = from_snapshot_to_values(snaps)
         n_snapshots = len(probs_dict)
@@ -336,53 +347,52 @@ def collect_snapshots(edges, num_layers, fixed_params=None):
         for k, v in phases_dict.items():
             all_phases[key_offset + k] = v
         key_offset += n_snapshots
-
     return all_probs, all_phases, n_snapshots
     
 def run_plot_engine(
     filename, num_layers, num_wires, edges, states,
-    fixed_params=None, aggregate=False,
+     gamma_vals=None, beta_vals=None, aggregate=False,
     from_snapshot_to_values_bool=False,
     from_state_to_values_bool=False
 ):
-    if from_snapshot_to_values_bool:
-        if aggregate and fixed_params is not None:
-            all_probs, all_phases, n_snapshots = collect_snapshots(edges, num_layers, fixed_params)
-            state_metric_aggregate(
-                f"{plot_subdirs[2]}/{filename}", states, all_probs, n_snapshots, fixed_params, plot_subdirs[2].split('_')[1]
-            )
-            state_metric_aggregate(
-                f"{plot_subdirs[3]}/{filename}", states, all_phases, n_snapshots, fixed_params, plot_subdirs[3].split('_')[1]
-            )
-        else:
-            circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=fixed_params)
-            probs, phases = from_snapshot_to_values(snaps)
-            state_metric(f"{plot_subdirs[0]}/{filename}", states, probs, plot_subdirs[0].split('_')[1], line_color="orange")
-            state_metric(f"{plot_subdirs[1]}/{filename}", states, phases, plot_subdirs[1].split('_')[1])
+    if gamma_vals is not None and beta_vals is not None:
+        if from_snapshot_to_values_bool:
+            if aggregate:
+                all_probs, all_phases, n_snapshots = collect_snapshots(edges, num_layers, gamma_vals, beta_vals)
+                state_metric_aggregate(
+                    f"{plot_subdirs[2]}/{filename}", states, all_probs, n_snapshots, gamma_vals, plot_subdirs[2].split('_')[1]
+                )
+                state_metric_aggregate(
+                    f"{plot_subdirs[3]}/{filename}", states, all_phases, n_snapshots, gamma_vals, plot_subdirs[3].split('_')[1]
+                )
+            # else: 
+            #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=[gamma_vals[0] * num_layers, beta_vals[0] * num_layers])
+            #     probs, phases = from_snapshot_to_values(snaps)
+            #     state_metric(f"{plot_subdirs[0]}/{filename}", states, probs, plot_subdirs[0].split('_')[1], line_color="orange")
+            #     state_metric(f"{plot_subdirs[1]}/{filename}", states, phases, plot_subdirs[1].split('_')[1])
+                
 
-    elif from_state_to_values_bool:
-        if aggregate and fixed_params is not None:
-            all_probs, all_phases = collect_states(edges, num_layers, num_wires, states, fixed_params)
-            probability_phase_aggregate(f"{plot_subdirs[5]}/{filename}", states, all_probs, all_phases, fixed_params)
-        else:
-            circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=fixed_params)
-            probs, phases = from_state_to_values(states, snaps, num_wires)
-            probability_phase(f"{plot_subdirs[4]}/{filename}", states, probs, phases)
+        elif from_state_to_values_bool:
+            if aggregate:
+                all_probs, all_phases = collect_states(edges, num_layers, num_wires, states,  gamma_vals, beta_vals)
+                probability_phase_aggregate(f"{plot_subdirs[5]}/{filename}", states, all_probs, all_phases, gamma_vals)
+            # else:
+            #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=[gamma_vals[0] * num_layers, beta_vals[0] * num_layers])
+            #     probs, phases = from_state_to_values(states, snaps, num_wires)
+            #     probability_phase(f"{plot_subdirs[4]}/{filename}", states, probs, phases)
 
+# def test_gamma_beta_incremental(num_layers, num_wires, edges, states):
+#     params_range = np.arange(0.1, 1, 0.1)
+#     for i in range(len(params_range)):
+#         params = [[params_range[i]]*num_layers, [0.5]*num_layers]
+#         run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params,  from_snapshot_to_values_bool=True)
+#         run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params, from_state_to_values_bool=True)
 
-def test_gamma_beta_incremental(num_layers, num_wires, edges, states):
-    params_range = np.arange(0.1, 1, 0.1)
-    for i in range(len(params_range)):
-        params = [[params_range[i]]*num_layers, [0.5]*num_layers]
-        # run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params,  from_snapshot_to_values_bool=True)
-        run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params, from_state_to_values_bool=True)
-        
-        
 def test_gamma_beta_aggregate_incremental(num_layers, num_wires, edges, states):
-    params_range =  np.arange(0.01, 0.1, 0.01)  
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, params_range, aggregate=True, from_snapshot_to_values_bool=True)    
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, params_range, aggregate=True, from_state_to_values_bool=True)
-
+    gamma_vals = -np.arange(0.01, 0.09, 0.01)
+    beta_vals  =  np.arange(0.01, 0.09, 0.01)
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, gamma_vals, beta_vals, aggregate=True, from_snapshot_to_values_bool=True)    
+    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, gamma_vals, beta_vals, aggregate=True, from_state_to_values_bool=True)
     
 if __name__ == "__main__":
     num_layers = 2
@@ -397,6 +407,5 @@ if __name__ == "__main__":
             nodes.add(node2)
     num_wires = len(nodes)
     states = [format(i, f'0{num_wires}b') for i in range(2 ** num_wires)]   
-    # test_gamma_beta_incremental(num_layers, num_wires, edges, states)
     test_gamma_beta_aggregate_incremental(num_layers, num_wires, edges, states)
 
