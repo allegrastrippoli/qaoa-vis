@@ -355,7 +355,7 @@ def run_plot_engine(
     from_snapshot_to_values_bool=False,
     from_state_to_values_bool=False
 ):
-    if gamma_vals is not None and beta_vals is not None:
+    # if gamma_vals is not None and beta_vals is not None:
         if from_snapshot_to_values_bool:
             if aggregate:
                 all_probs, all_phases, n_snapshots = collect_snapshots(edges, num_layers, gamma_vals, beta_vals)
@@ -366,33 +366,36 @@ def run_plot_engine(
                     f"{plot_subdirs[3]}/{filename}", states, all_phases, n_snapshots, gamma_vals, plot_subdirs[3].split('_')[1]
                 )
             # else: 
-            #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=[gamma_vals[0] * num_layers, beta_vals[0] * num_layers])
+            #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=gamma_vals)
             #     probs, phases = from_snapshot_to_values(snaps)
             #     state_metric(f"{plot_subdirs[0]}/{filename}", states, probs, plot_subdirs[0].split('_')[1], line_color="orange")
             #     state_metric(f"{plot_subdirs[1]}/{filename}", states, phases, plot_subdirs[1].split('_')[1])
                 
-
         elif from_state_to_values_bool:
             if aggregate:
                 all_probs, all_phases = collect_states(edges, num_layers, num_wires, states,  gamma_vals, beta_vals)
                 probability_phase_aggregate(f"{plot_subdirs[5]}/{filename}", states, all_probs, all_phases, gamma_vals)
             # else:
-            #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=[gamma_vals[0] * num_layers, beta_vals[0] * num_layers])
+            #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=gamma_vals)
             #     probs, phases = from_state_to_values(states, snaps, num_wires)
             #     probability_phase(f"{plot_subdirs[4]}/{filename}", states, probs, phases)
 
+
 # def test_gamma_beta_incremental(num_layers, num_wires, edges, states):
-#     params_range = np.arange(0.1, 1, 0.1)
-#     for i in range(len(params_range)):
-#         params = [[params_range[i]]*num_layers, [0.5]*num_layers]
-#         run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params,  from_snapshot_to_values_bool=True)
-#         run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params, from_state_to_values_bool=True)
+#     gamma_vals = -np.arange(0.01, 0.09, 0.01)
+#     beta_vals  =  np.arange(0.01, 0.09, 0.01)
+#     if len(gamma_vals) == len(beta_vals):
+#         for i in range(len(gamma_vals)):
+#             params = [[gamma_vals[i]]*num_layers, [beta_vals[i]]*num_layers]
+#             run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params, None, aggregate=False, from_snapshot_to_values_bool=True)
+#             run_plot_engine(f"example_graph{i}.svg", num_layers, num_wires, edges, states, params, None, aggregate=False, from_state_to_values_bool=True)
 
 def test_gamma_beta_aggregate_incremental(num_layers, num_wires, edges, states):
     gamma_vals = -np.arange(0.01, 0.09, 0.01)
     beta_vals  =  np.arange(0.01, 0.09, 0.01)
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, gamma_vals, beta_vals, aggregate=True, from_snapshot_to_values_bool=True)    
-    run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, gamma_vals, beta_vals, aggregate=True, from_state_to_values_bool=True)
+    if len(gamma_vals) == len(beta_vals):
+        run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, gamma_vals, beta_vals, aggregate=True, from_snapshot_to_values_bool=True)    
+        run_plot_engine(f"example_graph.svg", num_layers, num_wires, edges, states, gamma_vals, beta_vals, aggregate=True, from_state_to_values_bool=True)
     
 if __name__ == "__main__":
     num_layers = 2
@@ -407,5 +410,6 @@ if __name__ == "__main__":
             nodes.add(node2)
     num_wires = len(nodes)
     states = [format(i, f'0{num_wires}b') for i in range(2 ** num_wires)]   
+    # test_gamma_beta_incremental(num_layers, num_wires, edges, states)
     test_gamma_beta_aggregate_incremental(num_layers, num_wires, edges, states)
 
