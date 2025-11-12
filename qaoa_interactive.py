@@ -103,7 +103,6 @@ class MainWindow(QMainWindow):
         self.load_graph_js()
 
 
-
     def load_graph_js(self):
             try:
                 with open("graph.txt") as f:
@@ -212,19 +211,39 @@ class MainWindow(QMainWindow):
         y = 100
 
         self.squares = []  
+        # self.lines = []  
         
         cost_mixer_labels = ['C', 'M']
+        gamma_beta = ['γ', 'β']
         idx = -1
+
+        total_width = num_layers * square_size + (num_layers - 1) * spacing
+        line_y = y + square_size / 2  
+        line_start_x = start_x - spacing / 2
+        line_end_x = start_x + total_width - square_size + spacing / 2
+
+        base_line = self.canvas_scene.addLine(
+            line_start_x, line_y, line_end_x, line_y,
+            QPen(Qt.darkGray, 2, Qt.SolidLine)
+        )
+        base_line.setZValue(50)  
+
         for i in range(num_layers):
             x = start_x + i * (square_size + spacing)
             rect_item = self.canvas_scene.addRect(
                 x, y, square_size, square_size,
                 QPen(Qt.black, 2),
                 QBrush(Qt.lightGray)
-            )              
+            )
+            rect_item.setZValue(100) 
+
             if i % 2 == 0:
                 idx += 1
-            label_html = f"<span style='font-size:16px;'>&#770;U<sub>{cost_mixer_labels[i%2]}</sub>(γ<sub>{idx}</sub>)</span>"
+
+            label_html = (
+                f"<span style='font-size:16px;'>&#770;U<sub>{cost_mixer_labels[i%2]}</sub>"
+                f"({gamma_beta[i%2]}<sub>{idx}</sub>)</span>"
+            )
             label = self.canvas_scene.addText("")
             label.setHtml(label_html)
             label.setDefaultTextColor(Qt.black)
@@ -234,18 +253,22 @@ class MainWindow(QMainWindow):
                 x + (square_size - text_rect.width()) / 2,
                 y + (square_size - text_rect.height()) / 2
             )
+            label.setZValue(150)
 
             self.squares.append(rect_item)
 
         self.arrow_line = self.canvas_scene.addLine(0, 0, 0, 0, QPen(Qt.red, 3))
+        self.arrow_line.setZValue(200)
 
         self.arrow_head = self.canvas_scene.addPolygon(
             QtGui.QPolygonF(),
             QPen(Qt.red, 3),
             QBrush(Qt.red)
         )
+        self.arrow_head.setZValue(200)
 
         self.update_arrow_position(0)
+
 
 
     def create_html_plot(self, dataset, params, y_key, title):
