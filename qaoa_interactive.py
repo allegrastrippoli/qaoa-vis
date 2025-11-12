@@ -9,13 +9,14 @@ from PyQt5.QtCore import Qt
 from PyQt5 import QtGui, QtCore
 import json, sys
 
-with open("state_probability.json") as f:
+output_dir = "./charts"
+with open(f"{output_dir}/state_probability_aggregate/state_probability_aggregate.json") as f:
     data_prob = json.load(f)
 
 params_prob = data_prob[0]
 data_prob = data_prob[1:]
 
-with open("state_phase.json") as f:
+with open(f"{output_dir}/state_phase_aggregate/state_phase_aggregate.json") as f:
     data_phase = json.load(f)
 
 params_phase = data_phase[0]
@@ -51,14 +52,14 @@ class MainWindow(QMainWindow):
         self.current_index_top = 0
         self.period = params_prob["Period"]
 
-        self.create_html_plot(data_prob, params_prob, "Probability")
+        self.create_html_plot(data_prob, params_prob, "Metric", "Probability")
         self.web_view_top.setHtml(self.html_content)
 
         self.slider_top = QSlider(Qt.Horizontal)
         self.slider_top.setMinimum(0)
         self.slider_top.setMaximum(len(data_prob) // self.period - 1)
         self.slider_top.valueChanged.connect(self.slider_update_top)
-        self.slider_label_top = QLabel("Layer 0 (Probability)")
+        self.slider_label_top = QLabel("Layer 0")
 
         top_layout.addWidget(self.web_view_top)
         top_layout.addWidget(self.slider_label_top)
@@ -68,14 +69,14 @@ class MainWindow(QMainWindow):
         self.web_view_bottom = QWebEngineView()
         self.current_index_bottom = 0
 
-        self.create_html_plot(data_phase, params_phase, "Phase")
+        self.create_html_plot(data_phase, params_phase, "Metric", "Phase")
         self.web_view_bottom.setHtml(self.html_content)
 
         self.slider_bottom = QSlider(Qt.Horizontal)
         self.slider_bottom.setMinimum(0)
         self.slider_bottom.setMaximum(len(data_phase) // self.period - 1)
         self.slider_bottom.valueChanged.connect(self.slider_update_bottom)
-        self.slider_label_bottom = QLabel("Layer 0 (Phase)")
+        self.slider_label_bottom = QLabel("Layer 0")
 
         bottom_layout.addWidget(self.web_view_bottom)
         bottom_layout.addWidget(self.slider_label_bottom)
@@ -247,7 +248,7 @@ class MainWindow(QMainWindow):
         self.update_arrow_position(0)
 
 
-    def create_html_plot(self, dataset, params, y_key):
+    def create_html_plot(self, dataset, params, y_key, title):
         first_group = dataset[self.current_index_top:self.current_index_top + params["Period"]]
         traces_js = ""
 
@@ -272,21 +273,36 @@ class MainWindow(QMainWindow):
             <script>
                 var traces = [{traces_js}];
                 var layout = {{
-                    title: 'QAOA Viz ({y_key})',
+                    title: '{title}',
                     xaxis: {{title: 'State', type: 'category' }},
                     yaxis: {{title: '{y_key}', range: [{params["Y range"][0]}, {params["Y range"][1]}] }}
                 }};
                 Plotly.newPlot('plot', traces, layout);
 
+                var traceVisibility = traces.map(() => true);
+
+                var plotElement = document.getElementById('plot');
+                plotElement.on('plotly_legendclick', function(eventData) {{
+                    var traceIndex = eventData.curveNumber;
+                    traceVisibility[traceIndex] = !traceVisibility[traceIndex];
+                }});
+                plotElement.on('plotly_legenddoubleclick', function(eventData) {{
+                    return false;
+                }});
+
                 function updateData(newYs) {{
                     for (var i = 0; i < newYs.length; i++) {{
-                        Plotly.animate('plot', {{
-                            data: [{{ y: newYs[i] }}],
-                            traces: [i],
-                        }}, {{
-                            transition: {{ duration: 0 }},
-                            frame: {{ duration: 100, redraw: false }}
-                        }});
+                        if (traceVisibility[i]) {{
+                            Plotly.animate('plot', {{
+                                data: [{{ y: newYs[i], visible: true }}],
+                                traces: [i],
+                            }}, {{
+                                transition: {{ duration: 0 }},
+                                frame: {{ duration: 100, redraw: false }}
+                            }});
+                        }} else {{
+                            Plotly.restyle('plot', {{visible: 'legendonly'}}, [i]);
+                        }}
                     }}
                 }}
             </script>
@@ -294,26 +310,13 @@ class MainWindow(QMainWindow):
         </html>
         """
 
-
-    def animate_update(self):
-        next_indices = [
-            (self.current_index + self.period + i) % len(data)
-            for i in range(self.period)
-        ]
-        new_y_values = [data[idx]["Probability"] for idx in next_indices]
-
-        js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
-        js_command = f"updateData({js_array});"
-        self.web_view.page().runJavaScript(js_command)
-
-        self.current_index = (self.current_index + self.period) % len(data)
         
   
     def slider_update_top(self, value):
         self.slider_label_top.setText(f"Layer: {value}")
         start_index = value * self.period
         next_indices = [(start_index + i) % len(data_prob) for i in range(self.period)]
-        new_y_values = [data_prob[idx]["Probability"] for idx in next_indices]
+        new_y_values = [data_prob[idx]["Metric"] for idx in next_indices]
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         self.web_view_top.page().runJavaScript(f"updateData({js_array});")
         self.update_arrow_position(value)
@@ -323,7 +326,7 @@ class MainWindow(QMainWindow):
         self.slider_label_bottom.setText(f"Layer: {value}")
         start_index = value * self.period
         next_indices = [(start_index + i) % len(data_phase) for i in range(self.period)]
-        new_y_values = [data_phase[idx]["Phase"] for idx in next_indices]
+        new_y_values = [data_phase[idx]["Metric"] for idx in next_indices]
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         self.web_view_bottom.page().runJavaScript(f"updateData({js_array});")
         self.update_arrow_position(value)

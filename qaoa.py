@@ -127,7 +127,7 @@ def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
             y = metric_dict[j]
             results.append({
             "State": states,
-            "Phase": y
+            "Metric": y
             })        
             ax.plot(states, y, label=round(fixed_params[series_num], 3))
             j += n_snapshots
@@ -137,7 +137,7 @@ def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
         ax.set_xticklabels(states, rotation=90)
         ax.legend()
     
-    with open(f"{output_dir}/state_phase.json", "w") as f:
+    with open(file_path.replace("svg", "json"), "w") as f:
         json.dump(results, f, indent=4)
 
     fig.suptitle(y_label)
@@ -360,10 +360,10 @@ def run_plot_engine(
             if aggregate:
                 all_probs, all_phases, n_snapshots = collect_snapshots(edges, num_layers, gamma_vals, beta_vals)
                 state_metric_aggregate(
-                    f"{plot_subdirs[2]}/{filename}", states, all_probs, n_snapshots, gamma_vals, plot_subdirs[2].split('_')[1]
+                    f"{plot_subdirs[2]}/{plot_subdirs[2].split('/')[-1]}.svg", states, all_probs, n_snapshots, gamma_vals, plot_subdirs[2].split('_')[1]
                 )
                 state_metric_aggregate(
-                    f"{plot_subdirs[3]}/{filename}", states, all_phases, n_snapshots, gamma_vals, plot_subdirs[3].split('_')[1]
+                    f"{plot_subdirs[3]}/{plot_subdirs[3].split('/')[-1]}.svg", states, all_phases, n_snapshots, gamma_vals, plot_subdirs[3].split('_')[1]
                 )
             # else: 
             #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=gamma_vals)
@@ -374,7 +374,7 @@ def run_plot_engine(
         elif from_state_to_values_bool:
             if aggregate:
                 all_probs, all_phases = collect_states(edges, num_layers, num_wires, states,  gamma_vals, beta_vals)
-                probability_phase_aggregate(f"{plot_subdirs[5]}/{filename}", states, all_probs, all_phases, gamma_vals)
+                probability_phase_aggregate(f"{plot_subdirs[5]}/{plot_subdirs[5].split('/')[-1]}.svg", states, all_probs, all_phases, gamma_vals)
             # else:
             #     circuit, params, snaps = run_qaoa_for_graph(edges, num_layers=num_layers, params=gamma_vals)
             #     probs, phases = from_state_to_values(states, snaps, num_wires)
