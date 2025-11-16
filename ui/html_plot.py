@@ -1,0 +1,98 @@
+import json
+
+def create_plot_html(dataset, params, y_key, title, period, current_index):
+    traces_js = ""
+    first_group = dataset[current_index:current_index+period]
+
+    for i, elem in enumerate(first_group):
+        x_val = json.dumps([str(s) for s in elem["State"]])
+        y_val = json.dumps(elem[y_key])
+        traces_js += f"""
+        {{
+            x: {x_val},
+            y: {y_val},
+            mode: 'lines+markers',
+            name: 'γ,β={params["Fixed parameters"][i]}'
+        }},"""
+
+    return f"""
+        <html>
+        <head>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        </head>
+        <body>
+            <div id="plot" style="width:100%;height:100%"></div>
+            <script>
+                var traces = [{traces_js}];
+                var layout = {{
+                    title: '{title}',
+                    xaxis: {{title: 'State', type: 'category' }},
+                    yaxis: {{title: '{y_key}', range: [{params["Y range"][0]}, {params["Y range"][1]}] }}
+                }};
+                Plotly.newPlot('plot', traces, layout);
+
+                var traceVisibility = traces.map(() => true);
+
+                var plotElement = document.getElementById('plot');
+                plotElement.on('plotly_legendclick', function(eventData) {{
+                    var traceIndex = eventData.curveNumber;
+                    traceVisibility[traceIndex] = !traceVisibility[traceIndex];
+                }});
+                plotElement.on('plotly_legenddoubleclick', function(eventData) {{
+                    return false;
+                }});
+
+                function updateData(newYs) {{
+                    for (var i = 0; i < newYs.length; i++) {{
+                        if (traceVisibility[i]) {{
+                            Plotly.animate('plot', {{
+                                data: [{{ y: newYs[i], visible: true }}],
+                                traces: [i],
+                            }}, {{
+                                transition: {{ duration: 0 }},
+                                frame: {{ duration: 100, redraw: false }}
+                            }});
+                        }} else {{
+                            Plotly.restyle('plot', {{visible: 'legendonly'}}, [i]);
+                        }}
+                    }}
+                }}
+            </script>
+        </body>
+        </html>
+        """
+
+
+
+
+def build_visjs_html(edges):
+    nodes = sorted(set([n for e in edges for n in e]))
+
+    js_nodes = json.dumps([{"id": n, "label": str(n)} for n in nodes])
+    js_edges = json.dumps([{"from": u, "to": v} for u, v in edges])
+
+    return f"""
+    <html>
+    <head>
+        <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <style>#graph {{ width:100%; height:100vh; }}</style>
+    </head>
+    <body>
+        <div id="graph"></div>
+        <script>
+            var nodes = new vis.DataSet({js_nodes});
+            var edges = new vis.DataSet({js_edges});
+
+            var network = new vis.Network(
+                document.getElementById('graph'),
+                {{nodes:nodes, edges:edges}},
+                {{
+                    physics:true,
+                    nodes:{{shape:'dot', size:10}},
+                    edges:{{smooth:{{type:'continuous'}}}}
+                }}
+            );
+        </script>
+    </body>
+    </html>
+    """
