@@ -129,7 +129,8 @@ def state_metric_aggregate(file_path, states, metric_dict, n_snapshots,
             "State": states,
             "Metric": y
             })        
-            ax.plot(states, y, label=round(fixed_params[series_num], 3))
+            ax.plot(states, y, label=f"γ,β={abs(round(fixed_params[series_num], 3))}") 
+            # !!!!!!!!!!!!!!!!!!
             j += n_snapshots
             series_num += 1
 
@@ -258,16 +259,26 @@ def probability_phase_aggregate(file_path, states, probs_list, phases_list, fixe
     n_snapshots = len(fixed_params)
     fig, axes, x_range, y_range = prepare_prob_phase_fig(states, probs_list, phases_list)
     
+    results = []  
+    
     for i, state in enumerate(states):
         ax = axes[i]
+        values = []
         for j in range(n_snapshots):
             idx = i + len(states) * j
             x = probs_list[idx]
             y = phases_list[idx]
+            values.append({
+            "Probability": list(x),
+            "Phase": list(y)
+            })   
             ax.plot(x, y, '<-', label=round(fixed_params[j], 3))
 
             ax.plot(x[0], y[0], 'o', color='yellow', markersize=8, markeredgecolor='black', label='Start' if j == 0 else "")
             ax.plot(x[-1], y[-1], 'o', color='orange', markersize=8, markeredgecolor='black', label='End' if j == 0 else "")
+        results.append({
+            "State": state,
+            "Values": values})
 
         ax.plot([], [], color='black', label=f'State {state}')
         ax.set_xlabel('Probability')
@@ -279,6 +290,9 @@ def probability_phase_aggregate(file_path, states, probs_list, phases_list, fixe
 
     for j in range(len(states), len(axes)):
         fig.delaxes(axes[j])
+        
+    with open(file_path.replace("svg", "json"), "w") as f:
+        json.dump(results, f, indent=4)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
