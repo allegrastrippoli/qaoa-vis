@@ -1,0 +1,16 @@
+QWidget {
+        background-color: #f7f7f7;
+        color: black;
+    }
+QSlider::groove:horizontal {
+    height: 10px;
+    background: #cccccc;
+    border-radius: 2px;
+}
+QSlider::handle:horizontal {
+    background: #8c8b8b;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0; 
+    border-radius: 7px;
+}
