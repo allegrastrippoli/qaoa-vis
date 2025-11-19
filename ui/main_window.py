@@ -35,26 +35,21 @@ class MainWindow(QMainWindow):
         web_view = QWebEngineView()
         current_index = 0
         period = params["Period"]
-
         html_content = create_plot_html(data, params, "Metric", metric, period, current_index)
         web_view.setHtml(html_content)
-
         slider = QSlider(Qt.Horizontal)
         slider.setMinimum(0)
         slider.setMaximum(len(data) // period - 1)
         slider_label = QLabel("Layer 0")
-
-        edit_button = QPushButton("Edit Layers")
+        edit_button = QPushButton("Edit")
         edit_button.clicked.connect(
             partial(self.open_edit_dialog, params=params, web_view=web_view, data=data)
         )
-
         h = QHBoxLayout()
         h.addWidget(slider_label)
         h.addWidget(slider)
         h.addWidget(edit_button)
         h.addStretch()
-
         layout.addLayout(h)
         slider.valueChanged.connect(partial(self.slider_update, data=data, slider_label=slider_label, period=period, web_view=web_view))
         layout.addWidget(web_view)
@@ -64,12 +59,14 @@ class MainWindow(QMainWindow):
 
     def open_edit_dialog(self, params, web_view, data):
         dialog = LayerEditDialog(params)
-
         if dialog.exec_():
             new_values = dialog.get_values()
             params["Fixed parameters"] = new_values
+            print(new_values)
             params["Period"] = len(new_values)
-
+            # run qaoa here
+            # write values on file
+            # create plot html
             updated_html = create_plot_html(
                 data, params, "Metric",
                 "Updated",  

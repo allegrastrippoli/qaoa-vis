@@ -19,7 +19,7 @@ class LayerEditDialog(QDialog):
             layout.addLayout(row)
             self.entries.append((gEdit, bEdit))
 
-        add_button = QPushButton("Add Layer")
+        add_button = QPushButton("Add Run")
         add_button.clicked.connect(self.add_layer_row)
         layout.addWidget(add_button)
 
