@@ -2,7 +2,7 @@ import pennylane as qml
 import numpy as np
 
 class QAOAMaxCut:
-    def __init__(self, graph, num_layers=1, steps=20, seed=None, params=None):
+    def __init__(self, graph, num_layers=1,  params=None, steps=20, seed=None):
         self.graph = graph
         self.num_layers = num_layers
         self.steps = steps
@@ -48,7 +48,6 @@ class QAOAMaxCut:
 
         return circuit
 
-
     def run(self):
         # if self.params is None:
         #     init = 0.01 * np.random.rand(2, self.num_layers)
@@ -58,4 +57,6 @@ class QAOAMaxCut:
         #     for _ in range(self.steps):
         #         self.params = opt.step(self.objective, self.params)
         snaps = qml.snapshots(self.circuit)(*self.params)
-        return self.circuit, self.params, snaps
+        return snaps
+
+

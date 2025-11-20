@@ -1,8 +1,28 @@
 import json
 
-def create_plot_html(dataset, params, y_key, title, period, current_index):
+def create_init_html():
+    return f"""
+    <html>
+    <head>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    </head>
+    <body>
+        <div id="plot" style="width:100%;height:100%"></div>
+        <script>
+            Plotly.newPlot('plot', [], {{
+                title: 'QAOA',
+                xaxis: {{ title: '', type: 'category' }},
+                yaxis: {{ title: '' }}
+            }});
+        </script>
+    </body>
+    </html>
+    """
+
+
+def create_plot_html(dataset, params, y_key, title, num_runs, current_index):
     traces_js = ""
-    first_group = dataset[current_index:current_index+period]
+    first_group = dataset[current_index:current_index+num_runs]
 
     for i, elem in enumerate(first_group):
         x_val = json.dumps([str(s) for s in elem["State"]])

@@ -17,8 +17,9 @@ def write_values(path, n_snapshots, y_range, fixed_params, states, metric_dict):
     results = []    
     results.append({
         "Y range": y_range,
-        "Period" : len(fixed_params),
-        "Fixed parameters": list(fixed_params)
+        "Number of snapshots": n_snapshots,
+        "Number of runs" : len(fixed_params[0]),
+        "Fixed parameters": fixed_params
     })    
     for i in range(n_snapshots):
         j = i

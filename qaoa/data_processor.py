@@ -6,8 +6,6 @@ class DataProcessor:
         self.snaps = snaps
 
     def get_values_from_snaps(self):
-        key_offset = 0
-        all_probs, all_phases = {}, {}
         # dict size: 
         # there are "n_snapshots" keys
         # for each snapshot, there are "2^num_wires" values 
@@ -22,10 +20,6 @@ class DataProcessor:
                 phases[i].append(cmath.phase(n))
         # print(f"Probs: {probs}")
         # print(f"Phases: {phases}")
-        n_snapshots = len(probs)
-        for k, v in probs.items():
-            all_probs[key_offset + k] = v
-        for k, v in phases.items():
-            all_phases[key_offset + k] = v
-        key_offset += n_snapshots
-        return all_probs, all_phases, n_snapshots
+        return probs, phases 
+    
+    
