@@ -40,83 +40,133 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         main = QWidget()
-        horizontal_layout = QHBoxLayout(main)     
-        top_layout = self.setup_linecharts()
-        # bottom_layout = self.setup_linecharts(metric="Phase", data=self.data_phase, params=self.params_phase)
-        self.setup_parent_children_layout(horizontal_layout, [top_layout])
+        main_layout = QVBoxLayout(main)
+
+        init_button = QPushButton("Init")
+        init_button.clicked.connect(self.open_init_dialog)
+        main_layout.addWidget(init_button)
+
+        self.prob_layout, self.prob_view = self.setup_linecharts()
+        self.phase_layout, self.phase_view = self.setup_linecharts()
+
+        main_layout.addLayout(self.prob_layout)
+        main_layout.addLayout(self.phase_layout)
+
         self.setCentralWidget(main)
+
 
     def setup_parent_children_layout(self, parent_layout, children_layout):
         for child in children_layout:
             parent_layout.addLayout(child)
         
-    def setup_linecharts(self) -> QVBoxLayout:
+    def setup_linecharts(self):
         layout = QVBoxLayout()
         web_view = QWebEngineView()
-        init_html = create_init_html()
-        web_view.setHtml(init_html)
-        init_button = QPushButton("Init")
-        init_button.clicked.connect( partial(self.open_init_dialog,web_view=web_view, layout=layout))
-        h = QHBoxLayout()
-        h.addWidget(init_button)
-        h.addWidget(init_button)
-        layout.addLayout(h)
+        web_view.setHtml(create_init_html())   
         layout.addWidget(web_view)
-        return layout
+        return layout, web_view
+
     
     # write_values(path="resources/prova.json", n_snapshots=2, y_range=y_range, fixed_params=params, states=states, metric_dict=all_probs)
-    def open_init_dialog(self, web_view, layout):
+    def open_init_dialog(self):
         key_offset = 0
         all_probs, all_phases = {}, {}
+
         dialog = LayerInitDialog()
         dialog.add_layer_init_row()
         dialog.add_layer_row()
-        if dialog.exec_() == QDialog.Accepted:
-            params = dialog.get_values()
-            num_layers = dialog.get_number_of_layers()
-            fixed_params = [[gamma for (gamma, _) in params], [beta for (_, beta) in params]]
-            num_runs = len(fixed_params[0])
-            for (gamma, beta) in params:
-                same_param_for_each_layer = [[gamma] * num_layers, [beta] * num_layers]
-                qaoa = QAOAMaxCut(graph=[(0,1),(1,2),(2,3),(3,0)], num_layers=num_layers, params=same_param_for_each_layer)
-                snaps = qaoa.run() 
-                dp = DataProcessor(snaps)
-                probs, phases = dp.get_values_from_snaps()
-                n_snapshots = len(probs)
-                for k, v in probs.items():
-                    all_probs[key_offset + k] = v
-                for k, v in phases.items():
-                    all_phases[key_offset + k] = v
-                key_offset += n_snapshots
-            y_range = dp.get_y_range(all_probs)
-            probs_per_layer = dp.get_data_per_layer(states=states, metric_dict=all_probs, n_snapshots=num_layers*2)
-            print(probs_per_layer)
-            html_content = create_plot_html(states=states, data=probs_per_layer, params=params, y_range=y_range, num_runs=num_runs, title="Probability")
-            web_view.setHtml(html_content)
-            slider = QSlider(Qt.Horizontal)
-            slider.setMinimum(0)
-            slider.setMaximum(num_layers*2-1)
-            slider_label = QLabel("Layer 0")
-            # edit_button = QPushButton("Edit")
-            # edit_button.clicked.connect(
-            #     partial(self.open_edit_dialog, params=self.params_prob, web_view=web_view, data=self.data_prob)
-            # )
-            h = QHBoxLayout()
-            h.addWidget(slider_label)
-            h.addWidget(slider)
-            # h.addWidget(edit_button)
-            h.addStretch()
-            layout.addLayout(h)
-            slider.valueChanged.connect(partial(self.slider_update, data=probs_per_layer, slider_label=slider_label, web_view=web_view))
-            layout.addWidget(web_view)
-            layout.addWidget(slider_label)
-            layout.addWidget(slider)
-            
+
+        if dialog.exec_() != QDialog.Accepted:
+            return
+
+        params = dialog.get_values()
+        num_layers = dialog.get_number_of_layers()
+        num_runs = len(params)
+
+        for (gamma, beta) in params:
+            same_param_for_each_layer = [[gamma] * num_layers, [beta] * num_layers]
+
+            qaoa = QAOAMaxCut(
+                graph=[(0,1),(1,2),(2,3),(3,0)],
+                num_layers=num_layers,
+                params=same_param_for_each_layer
+            )
+            snaps = qaoa.run()
+            dp = DataProcessor(snaps)
+
+            probs, phases = dp.get_values_from_snaps()
+            n_snapshots = len(probs)
+
+            for k, v in probs.items():
+                all_probs[key_offset + k] = v
+            for k, v in phases.items():
+                all_phases[key_offset + k] = v
+
+            key_offset += n_snapshots
+
+        self.update_plot(
+            metric_dict=all_probs,
+            title="Probability",
+            web_view=self.prob_view,
+            layout=self.prob_layout,
+            params=params,
+            num_layers=num_layers
+        )
+
+        self.update_plot(
+            metric_dict=all_phases,
+            title="Phase",
+            web_view=self.phase_view,
+            layout=self.phase_layout,
+            params=params,
+            num_layers=num_layers
+        )
         
+        
+    def update_plot(self, metric_dict, title, web_view, layout, params, num_layers):
+        dp = DataProcessor({})  
+
+        y_range = dp.get_y_range(metric_dict)
+        data_per_layer = dp.get_data_per_layer(
+            states=states,
+            metric_dict=metric_dict,
+            n_snapshots=num_layers * 2
+        )
+
+        html_content = create_plot_html(
+            states=states,
+            data=data_per_layer,
+            params=params,
+            y_range=y_range,
+            num_runs=len(params),
+            title=title
+        )
+        web_view.setHtml(html_content)
+
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(0)
+        slider.setMaximum(num_layers * 2 - 1)
+
+        label = QLabel(f"{title} Layer 0")
+
+        h = QHBoxLayout()
+        h.addWidget(label)
+        h.addWidget(slider)
+        layout.addLayout(h)
+
+        slider.valueChanged.connect(
+            partial(
+                self.slider_update,
+                data=data_per_layer,
+                slider_label=label,
+                web_view=web_view
+            )
+        )
+
+
     def slider_update(self, value, data, slider_label, web_view) -> None:
         slider_label.setText(f"Layer: {value}")
         new_y_values = data[value]
-        print(data[value])
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         web_view.page().runJavaScript(f"updateData({js_array});")
         
