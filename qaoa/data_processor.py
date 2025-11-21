@@ -22,4 +22,28 @@ class DataProcessor:
         # print(f"Phases: {phases}")
         return probs, phases 
     
+    def get_min_max(self, metric_dict):
+        all_values = []
+        for values in metric_dict.values():
+            all_values.extend(values)  
+        return min(all_values), max(all_values)
     
+    def get_y_range(self, metric_dict):
+        y_min, y_max = self.get_min_max(metric_dict)
+        padding = 0.1 * (y_max - y_min)
+        return (y_min - padding, y_max + padding)
+    
+
+    def get_data_per_layer(self, states, metric_dict, n_snapshots):
+        data_per_layer = dict() # key: num_layer, value: list of values
+        for i in range(n_snapshots):
+            j = i
+            while j in metric_dict:
+                if i in data_per_layer:
+                    data_per_layer[i].append(metric_dict[j])
+                else: 
+                    data_per_layer[i] = []
+                    data_per_layer[i].append(metric_dict[j])
+                j += n_snapshots
+        return data_per_layer
+   

@@ -64,6 +64,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(web_view)
         return layout
     
+    # write_values(path="resources/prova.json", n_snapshots=2, y_range=y_range, fixed_params=params, states=states, metric_dict=all_probs)
     def open_init_dialog(self, web_view, layout):
         key_offset = 0
         all_probs, all_phases = {}, {}
@@ -74,54 +75,53 @@ class MainWindow(QMainWindow):
             params = dialog.get_values()
             num_layers = dialog.get_number_of_layers()
             fixed_params = [[gamma for (gamma, _) in params], [beta for (_, beta) in params]]
+            num_runs = len(fixed_params[0])
             for (gamma, beta) in params:
                 same_param_for_each_layer = [[gamma] * num_layers, [beta] * num_layers]
                 qaoa = QAOAMaxCut(graph=[(0,1),(1,2),(2,3),(3,0)], num_layers=num_layers, params=same_param_for_each_layer)
                 snaps = qaoa.run() 
                 dp = DataProcessor(snaps)
                 probs, phases = dp.get_values_from_snaps()
-                
                 n_snapshots = len(probs)
                 for k, v in probs.items():
                     all_probs[key_offset + k] = v
                 for k, v in phases.items():
                     all_phases[key_offset + k] = v
                 key_offset += n_snapshots
-            write_values(path="resources/prova.json", n_snapshots=2, y_range=[0,1], fixed_params=fixed_params, states=states, metric_dict=all_probs)
-            (self.params_prob, self.data_prob) = load_json("resources/prova.json")
-            current_index = 0
-            num_runs = self.params_prob["Number of runs"]
-            html_content = create_plot_html(self.data_prob, self.params_prob, "Metric", "Probability", num_runs, current_index)
+            y_range = dp.get_y_range(all_probs)
+            probs_per_layer = dp.get_data_per_layer(states=states, metric_dict=all_probs, n_snapshots=num_layers*2)
+            print(probs_per_layer)
+            html_content = create_plot_html(states=states, data=probs_per_layer, params=params, y_range=y_range, num_runs=num_runs, title="Probability")
             web_view.setHtml(html_content)
             slider = QSlider(Qt.Horizontal)
             slider.setMinimum(0)
-            slider.setMaximum(len(self.data_prob) // num_runs - 1)
+            slider.setMaximum(num_layers*2-1)
             slider_label = QLabel("Layer 0")
-            edit_button = QPushButton("Edit")
-            edit_button.clicked.connect(
-                partial(self.open_edit_dialog, params=self.params_prob, web_view=web_view, data=self.data_prob)
-            )
+            # edit_button = QPushButton("Edit")
+            # edit_button.clicked.connect(
+            #     partial(self.open_edit_dialog, params=self.params_prob, web_view=web_view, data=self.data_prob)
+            # )
             h = QHBoxLayout()
             h.addWidget(slider_label)
             h.addWidget(slider)
-            h.addWidget(edit_button)
+            # h.addWidget(edit_button)
             h.addStretch()
             layout.addLayout(h)
-            slider.valueChanged.connect(partial(self.slider_update, data=self.data_prob, slider_label=slider_label, period=num_runs, web_view=web_view))
+            slider.valueChanged.connect(partial(self.slider_update, data=probs_per_layer, slider_label=slider_label, web_view=web_view))
             layout.addWidget(web_view)
             layout.addWidget(slider_label)
             layout.addWidget(slider)
-                
-    def slider_update(self, value, data, slider_label, period, web_view) -> None:
+            
+        
+    def slider_update(self, value, data, slider_label, web_view) -> None:
         slider_label.setText(f"Layer: {value}")
-        start_index = value * period
-        next_indices = [(start_index + i) % len(data) for i in range(period)]
-        new_y_values = [data[idx]["Metric"] for idx in next_indices]
+        new_y_values = data[value]
+        print(data[value])
         js_array = "[" + ",".join(str(y) for y in new_y_values) + "]"
         web_view.page().runJavaScript(f"updateData({js_array});")
         
-    def open_edit_dialog(self, params, web_view, data):
-        pass
+    # def open_edit_dialog(self, params, web_view, data):
+    #     pass
     #     dialog = LayerEditDialog(params)
     #     if dialog.exec_():
     #         new_values = dialog.get_values()
